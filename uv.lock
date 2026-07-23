@@ -1,0 +1,25 @@
+version = 1
+revision = 3
+requires-python = ">=3.13"
+
+[manifest]
+members = [
+    "tty-agent",
+    "tty-ai",
+]
+
+[[package]]
+name = "tty-agent"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "tty-ai" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tty-ai", editable = "packages/tty-ai" }]
+
+[[package]]
+name = "tty-ai"
+version = "0.1.0"
+source = { editable = "packages/tty-ai" }
