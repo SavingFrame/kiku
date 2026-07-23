@@ -25,10 +25,9 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
-
       - id: local-ty
         name: ty check
         entry: uv run ty check packages/
         require_serial: true
-        language: unsupported
+        language: system
         pass_filenames: false
