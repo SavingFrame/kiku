@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 
 from kiku_ai.api.fake import (
     FakeApiAdapter,
@@ -8,9 +8,10 @@ from kiku_ai.api.fake import (
 )
 from kiku_ai.auth import CredentialStore, KeylessAuth, ModelAuth, ProviderAuth
 from kiku_ai.context import Context
+from kiku_ai.events import AssistantMessageEvent
 from kiku_ai.models import Model
 from kiku_ai.providers.base import Provider
-from kiku_ai.streaming import AssistantMessageStream, StreamOptions
+from kiku_ai.streaming import StreamOptions
 
 
 class FakeProvider(Provider):
@@ -44,7 +45,7 @@ class FakeProvider(Provider):
         model: Model,
         context: Context,
         options: StreamOptions | None = None,
-    ) -> AssistantMessageStream:
+    ) -> AsyncIterator[AssistantMessageEvent]:
         return self.api.stream(
             model,
             context,

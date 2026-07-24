@@ -1,14 +1,13 @@
-import asyncio
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from kiku_ai.auth import ModelAuth
 from kiku_ai.context import Context
-from kiku_ai.events import DoneEvent, ErrorEvent, StartEvent, TextDeltaEvent
+from kiku_ai.events import AssistantMessageEvent, DoneEvent, ErrorEvent, StartEvent, TextDeltaEvent
 from kiku_ai.messages import AssistantMessage, StopReason, TextContent, Usage
 from kiku_ai.models import Model
-from kiku_ai.streaming import AssistantMessageStream, StreamOptions
+from kiku_ai.streaming import StreamOptions
 
 
 @dataclass
@@ -27,7 +26,6 @@ class FakeApiAdapter:
     def __init__(self, responses: Sequence[FakeResponseStep] | None = None) -> None:
         self.responses = list(responses or [])
         self.state = FakeProviderState()
-        self._tasks: set[asyncio.Task[None]] = set()
 
     def enqueue(self, response: FakeResponseStep) -> None:
         self.responses.append(response)
@@ -40,54 +38,42 @@ class FakeApiAdapter:
         *,
         auth: ModelAuth,
         base_url: str,
-    ) -> AssistantMessageStream:
+    ) -> AsyncIterator[AssistantMessageEvent]:
         del auth, base_url
-        stream = AssistantMessageStream()
         step = self.responses.pop(0) if self.responses else None
         self.state.call_count += 1
-        task = asyncio.create_task(self._produce(stream, step, model, context, options))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        return stream
 
-    async def _produce(
-        self,
-        stream: AssistantMessageStream,
-        step: FakeResponseStep | None,
-        model: Model,
-        context: Context,
-        options: StreamOptions | None,
-    ) -> None:
-        try:
-            if step is None:
-                raise RuntimeError("No fake response is queued")
+        async def iterator() -> AsyncIterator[AssistantMessageEvent]:
+            try:
+                if step is None:
+                    raise RuntimeError("No fake response is queued")
 
-            if isinstance(step, AssistantMessage):
-                response = step
-            else:
-                resolved = step(context, options, self.state, model)
-                if isinstance(resolved, AssistantMessage):
-                    response = resolved
+                if isinstance(step, AssistantMessage):
+                    response = step
                 else:
-                    response = await resolved
-            self._stream_response(stream, response)
-        except Exception as error:
-            message = AssistantMessage(
-                timestamp=datetime.now(UTC),
-                content=[],
-                usage=Usage(),
-                stop_reason=StopReason.ERROR,
-                error_message=str(error),
-            )
-            stream.push(ErrorEvent(reason=StopReason.ERROR, error=message))
+                    resolved = step(context, options, self.state, model)
+                    response = resolved if isinstance(resolved, AssistantMessage) else await resolved
 
-    def _stream_response(
-        self,
-        stream: AssistantMessageStream,
-        response: AssistantMessage,
-    ) -> None:
-        partial = response.model_copy(update={"content": [], "usage": Usage()})
-        stream.push(StartEvent(partial=partial))
+                for event in self._response_events(response):
+                    yield event
+            except Exception as error:
+                message = AssistantMessage(
+                    timestamp=datetime.now(UTC),
+                    content=[],
+                    usage=Usage(),
+                    stop_reason=StopReason.ERROR,
+                    error_message=str(error),
+                )
+                yield ErrorEvent(reason=StopReason.ERROR, error=message)
+
+        return iterator()
+
+    def _response_events(self, response: AssistantMessage) -> Iterator[AssistantMessageEvent]:
+        if response.stop_reason is None:
+            raise ValueError("Fake response requires a terminal stop reason")
+
+        partial = response.model_copy(update={"content": [], "usage": Usage(), "stop_reason": None})
+        yield StartEvent(partial=partial)
 
         partial_content: list[TextContent] = []
         for content_index, content in enumerate(response.content):
@@ -99,7 +85,7 @@ class FakeApiAdapter:
                         "error_message": "FakeApiAdapter currently supports text responses only",
                     }
                 )
-                stream.push(ErrorEvent(reason=StopReason.ERROR, error=error))
+                yield ErrorEvent(reason=StopReason.ERROR, error=error)
                 return
 
             partial_content.append(TextContent(content=""))
@@ -107,19 +93,25 @@ class FakeApiAdapter:
             for delta in _text_chunks(content.content):
                 accumulated += delta
                 partial_content[content_index] = TextContent(content=accumulated)
-                partial = response.model_copy(update={"content": list(partial_content), "usage": Usage()})
-                stream.push(
-                    TextDeltaEvent(
-                        content_index=content_index,
-                        delta=delta,
-                        partial=partial,
-                    )
+                partial = response.model_copy(
+                    update={"content": list(partial_content), "usage": Usage(), "stop_reason": None}
+                )
+                yield TextDeltaEvent(
+                    content_index=content_index,
+                    delta=delta,
+                    partial=partial,
                 )
 
-        if response.stop_reason in (StopReason.ERROR, StopReason.ABORTED):
-            stream.push(ErrorEvent(reason=response.stop_reason, error=response))
+        if response.stop_reason == StopReason.ERROR:
+            yield ErrorEvent(reason=StopReason.ERROR, error=response)
+        elif response.stop_reason == StopReason.ABORTED:
+            yield ErrorEvent(reason=StopReason.ABORTED, error=response)
+        elif response.stop_reason == StopReason.LENGTH:
+            yield DoneEvent(reason=StopReason.LENGTH, message=response)
+        elif response.stop_reason == StopReason.TOOL_USE:
+            yield DoneEvent(reason=StopReason.TOOL_USE, message=response)
         else:
-            stream.push(DoneEvent(reason=response.stop_reason, message=response))
+            yield DoneEvent(reason=StopReason.STOP, message=response)
 
 
 def _text_chunks(text: str, chunk_size: int = 8) -> list[str]:

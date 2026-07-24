@@ -39,8 +39,12 @@ async def collect_response(
 ) -> tuple[list[AssistantMessageEvent], AssistantMessage]:
     model = provider.get_model("fake-model")
     assert model is not None
-    stream = provider.stream(model, Context(messages=[]))
-    return [event async for event in stream], await stream.result()
+    events = [event async for event in provider.stream(model, Context(messages=[]))]
+    terminal = events[-1]
+    if isinstance(terminal, DoneEvent):
+        return events, terminal.message
+    assert isinstance(terminal, ErrorEvent)
+    return events, terminal.error
 
 
 def test_owns_api_adapter_and_base_url() -> None:
@@ -150,13 +154,17 @@ async def test_response_factory_receives_request_and_state() -> None:
     model = provider.get_model("fake-model")
     assert model is not None
 
-    stream = provider.stream(
-        model,
-        Context(messages=[]),
-        StreamOptions(session_id="session-1"),
-    )
-
-    assert (await stream.result()).content == [TextContent(content="0:session-1:1:fake-model")]
+    events = [
+        event
+        async for event in provider.stream(
+            model,
+            Context(messages=[]),
+            StreamOptions(session_id="session-1"),
+        )
+    ]
+    terminal = events[-1]
+    assert isinstance(terminal, DoneEvent)
+    assert terminal.message.content == [TextContent(content="0:session-1:1:fake-model")]
     assert provider.state.call_count == 1
 
 

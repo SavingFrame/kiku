@@ -1,9 +1,11 @@
+from collections.abc import AsyncIterator
 from typing import Protocol
 
 from kiku_ai.auth import ModelAuth
 from kiku_ai.context import Context
+from kiku_ai.events import AssistantMessageEvent
 from kiku_ai.models import Model
-from kiku_ai.streaming import AssistantMessageStream, StreamOptions
+from kiku_ai.streaming import StreamOptions
 
 
 class ApiAdapter(Protocol):
@@ -17,4 +19,4 @@ class ApiAdapter(Protocol):
         *,
         auth: ModelAuth,
         base_url: str,
-    ) -> AssistantMessageStream: ...
+    ) -> AsyncIterator[AssistantMessageEvent]: ...

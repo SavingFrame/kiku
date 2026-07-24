@@ -1,11 +1,12 @@
 import abc
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 
 from kiku_ai.api import ApiAdapter
 from kiku_ai.auth import CredentialStore, ModelAuth, ProviderAuth
 from kiku_ai.context import Context
+from kiku_ai.events import AssistantMessageEvent
 from kiku_ai.models import Model
-from kiku_ai.streaming import AssistantMessageStream, StreamOptions
+from kiku_ai.streaming import StreamOptions
 
 
 class Provider(abc.ABC):
@@ -41,7 +42,7 @@ class Provider(abc.ABC):
         model: Model,
         context: Context,
         options: StreamOptions | None = None,
-    ) -> AssistantMessageStream:
+    ) -> AsyncIterator[AssistantMessageEvent]:
         raise NotImplementedError("You should implement it by yourself")
 
 
