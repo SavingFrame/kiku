@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from kiku_ai.auth import KeylessAuth, ProviderAuth
+from kiku_ai.auth import CredentialStore, KeylessAuth, ProviderAuth
 from kiku_ai.context import Context
 from kiku_ai.events import DoneEvent, ErrorEvent, StartEvent, TextDeltaEvent
 from kiku_ai.messages import AssistantMessage, StopReason, TextContent, Usage
@@ -33,7 +33,10 @@ class FakeProvider(Provider):
         self,
         responses: Sequence[FakeResponseStep] | None = None,
         models: Sequence[Model] | None = None,
+        *,
+        credential_store: CredentialStore,
     ) -> None:
+        super().__init__(credential_store=credential_store)
         self.responses = list(responses or [])
         self.models = list(models or [_default_model()])
         self.state = FakeProviderState()

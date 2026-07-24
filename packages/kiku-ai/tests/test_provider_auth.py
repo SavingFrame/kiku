@@ -1,27 +1,24 @@
 import asyncio
 
 from kiku_ai.auth import ApiKeyCredential, Credential, MemoryCredentialStore, ModelAuth
-from kiku_ai.providers import FakeProvider, ProviderManager
+from kiku_ai.providers import FakeProvider
 
 
-async def test_manager_resolves_provider_auth() -> None:
-    manager = ProviderManager()
-    manager.register(FakeProvider())
+async def test_provider_resolves_auth() -> None:
+    provider = FakeProvider(credential_store=MemoryCredentialStore())
 
-    assert await manager.resolve_auth("fake") == ModelAuth()
+    assert await provider.resolve_auth() == ModelAuth()
 
 
-async def test_manager_passes_stored_credential_to_provider_auth() -> None:
+async def test_provider_passes_stored_credential_to_auth() -> None:
     store = MemoryCredentialStore()
     credential = ApiKeyCredential(key="secret")
     await store.modify("fake", lambda _: asyncio.sleep(0, result=credential))
     auth = CapturingAuth()
-    provider = FakeProvider()
+    provider = FakeProvider(credential_store=store)
     provider.auth = auth
-    manager = ProviderManager(credential_store=store)
-    manager.register(provider)
 
-    result = await manager.resolve_auth("fake")
+    result = await provider.resolve_auth()
 
     assert auth.credential is credential
     assert result == ModelAuth(api_key="secret")

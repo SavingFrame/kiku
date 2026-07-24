@@ -15,6 +15,7 @@ from kiku_ai import (
     TextDeltaEvent,
     Usage,
 )
+from kiku_ai.auth import MemoryCredentialStore
 from kiku_ai.providers.fake import FakeProvider, FakeProviderState
 
 
@@ -43,7 +44,10 @@ async def collect_response(
 
 async def test_streams_a_scripted_text_response() -> None:
     response = make_response("Hello from the fake provider")
-    provider = FakeProvider(responses=[response])
+    provider = FakeProvider(
+        responses=[response],
+        credential_store=MemoryCredentialStore(),
+    )
 
     events, result = await collect_response(provider)
 
@@ -59,7 +63,10 @@ async def test_consumes_responses_in_order_and_can_enqueue_more() -> None:
     first = make_response("first")
     second = make_response("second")
     third = make_response("third")
-    provider = FakeProvider(responses=[first, second])
+    provider = FakeProvider(
+        responses=[first, second],
+        credential_store=MemoryCredentialStore(),
+    )
     provider.enqueue(third)
 
     assert (await collect_response(provider))[1] is first
@@ -68,7 +75,9 @@ async def test_consumes_responses_in_order_and_can_enqueue_more() -> None:
 
 
 async def test_empty_response_queue_returns_an_error_event() -> None:
-    events, result = await collect_response(FakeProvider())
+    events, result = await collect_response(
+        FakeProvider(credential_store=MemoryCredentialStore())
+    )
 
     assert len(events) == 1
     assert isinstance(events[0], ErrorEvent)
@@ -79,7 +88,12 @@ async def test_empty_response_queue_returns_an_error_event() -> None:
 async def test_scripted_error_response_terminates_with_error() -> None:
     response = make_response("partial", StopReason.ERROR, "Provider failed")
 
-    events, result = await collect_response(FakeProvider(responses=[response]))
+    events, result = await collect_response(
+        FakeProvider(
+            responses=[response],
+            credential_store=MemoryCredentialStore(),
+        )
+    )
 
     assert isinstance(events[-1], ErrorEvent)
     assert events[-1].reason == StopReason.ERROR
@@ -89,7 +103,12 @@ async def test_scripted_error_response_terminates_with_error() -> None:
 async def test_scripted_aborted_response_terminates_with_error() -> None:
     response = make_response("partial", StopReason.ABORTED, "Request cancelled")
 
-    events, result = await collect_response(FakeProvider(responses=[response]))
+    events, result = await collect_response(
+        FakeProvider(
+            responses=[response],
+            credential_store=MemoryCredentialStore(),
+        )
+    )
 
     assert isinstance(events[-1], ErrorEvent)
     assert events[-1].reason == StopReason.ABORTED
@@ -97,7 +116,10 @@ async def test_scripted_aborted_response_terminates_with_error() -> None:
 
 
 async def test_event_order_is_deterministic() -> None:
-    provider = FakeProvider(responses=[make_response("0123456789")])
+    provider = FakeProvider(
+        responses=[make_response("0123456789")],
+        credential_store=MemoryCredentialStore(),
+    )
 
     events, _ = await collect_response(provider)
 
@@ -115,7 +137,10 @@ async def test_response_factory_receives_request_and_state() -> None:
         assert options is not None
         return make_response(f"{len(context.messages)}:{options.session_id}:{state.call_count}:{model.id}")
 
-    provider = FakeProvider(responses=[factory])
+    provider = FakeProvider(
+        responses=[factory],
+        credential_store=MemoryCredentialStore(),
+    )
     model = provider.get_model("fake-model")
     assert model is not None
 
@@ -140,7 +165,12 @@ async def test_async_response_factory() -> None:
         await asyncio.sleep(0)
         return make_response("async response")
 
-    events, result = await collect_response(FakeProvider(responses=[factory]))
+    events, result = await collect_response(
+        FakeProvider(
+            responses=[factory],
+            credential_store=MemoryCredentialStore(),
+        )
+    )
 
     assert isinstance(events[-1], DoneEvent)
     assert result.content == [TextContent(content="async response")]
@@ -156,7 +186,12 @@ async def test_response_factory_exception_becomes_stream_error() -> None:
         del context, options, state, model
         raise RuntimeError("boom")
 
-    events, result = await collect_response(FakeProvider(responses=[factory]))
+    events, result = await collect_response(
+        FakeProvider(
+            responses=[factory],
+            credential_store=MemoryCredentialStore(),
+        )
+    )
 
     assert len(events) == 1
     assert isinstance(events[0], ErrorEvent)
