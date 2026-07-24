@@ -8,7 +8,6 @@ from kiku_ai.auth.credentials import Credential
 class ModelAuth:
     api_key: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
-    base_url: str | None = None
 
 
 class ProviderAuth(Protocol):

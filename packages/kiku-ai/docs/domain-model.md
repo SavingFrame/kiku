@@ -178,7 +178,6 @@ class Model(BaseModel):
     name: str
     provider: str
     api: str
-    base_url: str
     reasoning: bool = False
     input: list[Literal["text", "image"]]
     context_window: int
@@ -188,7 +187,7 @@ class Model(BaseModel):
 
 The current Kiku `Model` uses `context_model`. The target name should be `context_window` because it describes a token limit, not another model.
 
-`provider` identifies the runtime owner, such as `openai-codex`. `api` identifies the wire protocol, such as `openai-codex-responses`.
+`provider` identifies the runtime owner, such as `openai-codex`. `api` identifies the wire protocol, such as `openai-codex-responses`. The provider owns the base URL, so endpoint configuration is not duplicated in model metadata.
 
 ## Usage
 

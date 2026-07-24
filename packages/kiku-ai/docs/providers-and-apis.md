@@ -17,7 +17,7 @@ Provider: groq
 API:      openai-completions
 ```
 
-Several providers can share one API adapter. This avoids duplicating message conversion and stream parsing for every OpenAI-compatible service.
+Several providers can share one API adapter. This avoids duplicating message conversion and stream parsing for every OpenAI-compatible service. Provider implementations live under `kiku_ai.providers`; wire adapters and their protocol-specific helpers live under `kiku_ai.api`.
 
 ## Provider responsibilities
 
@@ -36,6 +36,8 @@ Target interface:
 class Provider(Protocol):
     id: str
     name: str
+    api: ApiAdapter
+    base_url: str
 
     def get_models(self) -> Sequence[Model]: ...
 
@@ -63,7 +65,7 @@ An API adapter owns:
 - Stop-reason mapping
 - Protocol-specific compatibility behavior
 
-Target interface:
+Base interface:
 
 ```python
 class ApiAdapter(Protocol):
@@ -72,12 +74,21 @@ class ApiAdapter(Protocol):
         model: Model,
         context: Context,
         options: StreamOptions | None = None,
+        *,
+        auth: ModelAuth,
+        base_url: str,
     ) -> AssistantMessageStream: ...
 ```
 
+The provider resolves authentication before invoking its adapter. `ModelAuth` and `base_url` are keyword-only so credentials and provider transport configuration cannot be confused with canonical request data. The adapter receives no credential store and does not resolve or persist credentials. It combines auth headers, protocol defaults, and request-level options when constructing the wire request.
+
+`base_url` belongs to the provider rather than `Model` or `ModelAuth`. Models identify their wire protocol through `Model.api`, while the provider owns both the adapter implementation and its endpoint. The initial contract uses one adapter per provider; a mapping keyed by `Model.api` should only be introduced when a concrete mixed-API provider requires it.
+
+Like `Provider.stream()`, the adapter method returns a stream synchronously. Asynchronous HTTP work and failures are produced behind that stream. A provider that needs asynchronous authentication can return an outer stream, resolve auth in a task, then forward the adapter's stream. This follows Pi's lazy stream setup pattern without moving orchestration into the adapter.
+
 ## Provider manager
 
-`ProviderManager` coordinates provider registration, authentication, model lookup, and catalog refresh:
+`ProviderManager` is only a registry and model lookup facade:
 
 ```python
 class ProviderManager:
@@ -86,22 +97,26 @@ class ProviderManager:
     def get_provider(self, provider_id: str) -> Provider | None: ...
     def get_models(self, provider_id: str | None = None) -> Sequence[Model]: ...
     def get_model(self, provider_id: str, model_id: str) -> Model | None: ...
-    async def resolve_auth(self, provider_id: str) -> AuthResult | None: ...
-    async def refresh_models(self, provider_id: str | None = None) -> None: ...
 ```
 
-This is a manager rather than a registry because it owns active lifecycle behavior. A separate public model registry would duplicate provider-owned catalogs and require synchronization. The manager may maintain an internal model index for efficient lookup.
-
-Streaming remains a provider responsibility:
+Authentication and streaming remain provider responsibilities:
 
 ```text
 provider_manager.get_provider(model.provider)
     ↓
-provider manager resolves authentication
+provider.stream(model, context, options)
+    ↓
+provider resolves authentication
     ↓
 provider selects adapter using model.api
     ↓
-adapter streams normalized events
+adapter.stream(
+    model,
+    context,
+    options,
+    auth=resolved_auth,
+    base_url=provider.base_url,
+)
 ```
 
 `Model` remains serializable metadata and does not perform network requests.
@@ -126,7 +141,7 @@ Provider identity, credentials, and static defaults can remain provider configur
 
 ## Authentication
 
-`ProviderManager` coordinates authentication through a separate resolver and credential store. This is especially important for expiring OAuth tokens.
+Each provider coordinates authentication through its `ProviderAuth` and credential store. This is especially important for expiring OAuth tokens.
 
 The desired precedence is:
 

@@ -15,6 +15,7 @@ from kiku_ai import (
     TextDeltaEvent,
     Usage,
 )
+from kiku_ai.api import FakeApiAdapter
 from kiku_ai.auth import MemoryCredentialStore
 from kiku_ai.providers.fake import FakeProvider, FakeProviderState
 
@@ -40,6 +41,13 @@ async def collect_response(
     assert model is not None
     stream = provider.stream(model, Context(messages=[]))
     return [event async for event in stream], await stream.result()
+
+
+def test_owns_api_adapter_and_base_url() -> None:
+    provider = FakeProvider(credential_store=MemoryCredentialStore())
+
+    assert isinstance(provider.api, FakeApiAdapter)
+    assert provider.base_url == "fake://"
 
 
 async def test_streams_a_scripted_text_response() -> None:
@@ -75,9 +83,7 @@ async def test_consumes_responses_in_order_and_can_enqueue_more() -> None:
 
 
 async def test_empty_response_queue_returns_an_error_event() -> None:
-    events, result = await collect_response(
-        FakeProvider(credential_store=MemoryCredentialStore())
-    )
+    events, result = await collect_response(FakeProvider(credential_store=MemoryCredentialStore()))
 
     assert len(events) == 1
     assert isinstance(events[0], ErrorEvent)

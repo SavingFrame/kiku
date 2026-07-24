@@ -1,6 +1,7 @@
 import abc
 from collections.abc import Sequence
 
+from kiku_ai.api import ApiAdapter
 from kiku_ai.auth import CredentialStore, ModelAuth, ProviderAuth
 from kiku_ai.context import Context
 from kiku_ai.models import Model
@@ -10,6 +11,8 @@ from kiku_ai.streaming import AssistantMessageStream, StreamOptions
 class Provider(abc.ABC):
     id: str
     name: str
+    api: ApiAdapter
+    base_url: str
     auth: ProviderAuth
 
     def __init__(
