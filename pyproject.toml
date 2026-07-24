@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [ "kiku-ai" ]
+dependencies = [
+ "kiku-ai",
+ "pydantic>=2.13.4",
+]
 
 
 [tool.uv.sources]
@@ -16,6 +19,7 @@ members = ["packages/*"]
 [dependency-groups]
 dev = [
     "prek>=0.4.10",
+    "pytest>=9.1.1",
     "ruff>=0.15.22",
     "ty>=0.0.63",
 ]
@@ -37,6 +41,12 @@ select = [
     "SIM",
     # isort
     "I",
-	  # flake8-quotes
+	 # flake8-quotes
     "Q",
+    # flake-annotations
+    "ANN",
 ]
+
+[tool.ruff]
+# Allow lines to be as long as 120.
+line-length = 120
