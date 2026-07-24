@@ -2,8 +2,10 @@ import asyncio
 from collections.abc import AsyncIterator
 from enum import StrEnum
 
-from events import AssistantMessage, AssistantMessageEvent
 from pydantic import BaseModel
+
+from kiku_ai.events import AssistantMessageEvent
+from kiku_ai.messages import AssistantMessage
 
 
 class ReasoningLevel(StrEnum):

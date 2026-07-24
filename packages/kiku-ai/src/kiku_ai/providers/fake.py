@@ -3,20 +3,12 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from events import (
-    AssistantMessage,
-    Context,
-    DoneEvent,
-    ErrorEvent,
-    StartEvent,
-    StopReason,
-    TextContent,
-    TextDeltaEvent,
-    Usage,
-)
-from models import Model
-from provider import Provider
-from stream import AssistantMessageStream, StreamOptions
+from kiku_ai.context import Context
+from kiku_ai.events import DoneEvent, ErrorEvent, StartEvent, TextDeltaEvent
+from kiku_ai.messages import AssistantMessage, StopReason, TextContent, Usage
+from kiku_ai.models import Model
+from kiku_ai.providers.base import Provider
+from kiku_ai.streaming import AssistantMessageStream, StreamOptions
 
 
 @dataclass
@@ -122,9 +114,7 @@ class FakeProvider(Provider):
             for delta in _text_chunks(content.content):
                 accumulated += delta
                 partial_content[content_index] = TextContent(content=accumulated)
-                partial = response.model_copy(
-                    update={"content": list(partial_content), "usage": Usage()}
-                )
+                partial = response.model_copy(update={"content": list(partial_content), "usage": Usage()})
                 stream.push(
                     TextDeltaEvent(
                         content_index=content_index,

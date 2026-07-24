@@ -1,8 +1,9 @@
 import asyncio
 from datetime import UTC, datetime
 
-from events import (
+from kiku_ai import (
     AssistantMessage,
+    AssistantMessageStream,
     DoneEvent,
     ErrorEvent,
     StartEvent,
@@ -11,7 +12,6 @@ from events import (
     TextDeltaEvent,
     Usage,
 )
-from stream import AssistantMessageStream
 
 
 def make_message(

@@ -1,9 +1,9 @@
 import abc
 from collections.abc import Sequence
 
-from events import Context
-from models import Model
-from stream import AssistantMessageStream, StreamOptions
+from kiku_ai.context import Context
+from kiku_ai.models import Model
+from kiku_ai.streaming import AssistantMessageStream, StreamOptions
 
 
 class Provider(abc.ABC):

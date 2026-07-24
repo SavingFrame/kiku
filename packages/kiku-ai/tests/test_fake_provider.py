@@ -1,21 +1,21 @@
 import asyncio
 from datetime import UTC, datetime
 
-from events import (
+from kiku_ai import (
     AssistantMessage,
     AssistantMessageEvent,
     Context,
     DoneEvent,
     ErrorEvent,
+    Model,
     StartEvent,
     StopReason,
+    StreamOptions,
     TextContent,
     TextDeltaEvent,
     Usage,
 )
-from models import Model
-from providers.fake import FakeProvider, FakeProviderState
-from stream import StreamOptions
+from kiku_ai.providers.fake import FakeProvider, FakeProviderState
 
 
 def make_response(
@@ -49,9 +49,9 @@ async def test_streams_a_scripted_text_response() -> None:
 
     assert isinstance(events[0], StartEvent)
     assert isinstance(events[-1], DoneEvent)
-    assert "".join(
-        event.delta for event in events if isinstance(event, TextDeltaEvent)
-    ) == "Hello from the fake provider"
+    assert (
+        "".join(event.delta for event in events if isinstance(event, TextDeltaEvent)) == "Hello from the fake provider"
+    )
     assert result is response
 
 
@@ -102,9 +102,7 @@ async def test_event_order_is_deterministic() -> None:
     events, _ = await collect_response(provider)
 
     assert [event.type for event in events] == ["start", "text_delta", "text_delta", "done"]
-    assert [
-        event.delta for event in events if isinstance(event, TextDeltaEvent)
-    ] == ["01234567", "89"]
+    assert [event.delta for event in events if isinstance(event, TextDeltaEvent)] == ["01234567", "89"]
 
 
 async def test_response_factory_receives_request_and_state() -> None:
@@ -115,9 +113,7 @@ async def test_response_factory_receives_request_and_state() -> None:
         model: Model,
     ) -> AssistantMessage:
         assert options is not None
-        return make_response(
-            f"{len(context.messages)}:{options.session_id}:{state.call_count}:{model.id}"
-        )
+        return make_response(f"{len(context.messages)}:{options.session_id}:{state.call_count}:{model.id}")
 
     provider = FakeProvider(responses=[factory])
     model = provider.get_model("fake-model")
@@ -129,9 +125,7 @@ async def test_response_factory_receives_request_and_state() -> None:
         StreamOptions(session_id="session-1"),
     )
 
-    assert (await stream.result()).content == [
-        TextContent(content="0:session-1:1:fake-model")
-    ]
+    assert (await stream.result()).content == [TextContent(content="0:session-1:1:fake-model")]
     assert provider.state.call_count == 1
 
 
