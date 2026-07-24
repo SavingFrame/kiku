@@ -1,17 +1,19 @@
 [project]
-name = "kiku-agent"
+name = "kiku-workspace"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
  "kiku-ai",
+ "kiku-agent",
  "pydantic>=2.13.4",
 ]
 
 
 [tool.uv.sources]
 kiku-ai = { workspace = true }
+kiku-agent = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]

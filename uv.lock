@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 members = [
     "kiku-agent",
     "kiku-ai",
+    "kiku-workspace",
 ]
 
 [[package]]
@@ -105,35 +106,13 @@ wheels = [
 [[package]]
 name = "kiku-agent"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "packages/kiku-agent" }
 dependencies = [
     { name = "kiku-ai" },
-    { name = "pydantic" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "prek" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "ty" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "kiku-ai", editable = "packages/kiku-ai" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "prek", specifier = ">=0.4.10" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pytest-asyncio", specifier = ">=1.4.0" },
-    { name = "ruff", specifier = ">=0.15.22" },
-    { name = "ty", specifier = ">=0.0.63" },
-]
+requires-dist = [{ name = "kiku-ai", editable = "packages/kiku-ai" }]
 
 [[package]]
 name = "kiku-ai"
@@ -160,6 +139,41 @@ requires-dist = [
 dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
+]
+
+[[package]]
+name = "kiku-workspace"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "kiku-agent" },
+    { name = "kiku-ai" },
+    { name = "pydantic" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "prek" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "kiku-agent", editable = "packages/kiku-agent" },
+    { name = "kiku-ai", editable = "packages/kiku-ai" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "prek", specifier = ">=0.4.10" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "ruff", specifier = ">=0.15.22" },
+    { name = "ty", specifier = ">=0.0.63" },
 ]
 
 [[package]]

@@ -1,0 +1,16 @@
+[project]
+name = "kiku-agent"
+version = "0.1.0"
+description = "Agent runtime and reusable harness built on kiku-ai"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "kiku-ai",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+kiku-ai = { workspace = true }
