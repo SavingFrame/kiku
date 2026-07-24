@@ -119,7 +119,7 @@ Required behavior:
 
 ## Fake provider behavior
 
-The fake provider should translate a scripted final message into realistic events. It should not bypass the event contract.
+The fake provider should translate a scripted final message into realistic events. It should not bypass the event contract. Scripted steps may also be sync or async factories that receive the request context, options, provider state, and selected model.
 
 For a scripted text response, it can split text into deterministic chunks and emit:
 

@@ -87,6 +87,7 @@ Implement a scripted provider with:
 ```python
 fake = FakeProvider(responses=[...])
 fake.enqueue(response)
+fake.enqueue(lambda context, options, state, model: response)
 fake.get_model(model_id)
 fake.stream(model, context, options)
 ```
@@ -97,6 +98,7 @@ Tests:
 
 - Text response
 - Multiple sequential responses
+- Sync and async response factories
 - Empty response queue
 - Error response
 - Aborted response
