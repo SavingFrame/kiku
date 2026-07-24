@@ -123,3 +123,9 @@ type AssistantMessageEvent = Annotated[
     StartEvent | TextDeltaEvent | DoneEvent | ErrorEvent,
     Field(discriminator="type"),
 ]
+
+
+class Context(BaseModel):
+    system_prompt: str | None = None
+    messages: list[Message]
+    tools: list[ToolDescription] | None = None
