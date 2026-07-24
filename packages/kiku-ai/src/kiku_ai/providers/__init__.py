@@ -11,6 +11,7 @@ from kiku_ai.providers.fake import (
     FakeResponseFactory,
     FakeResponseStep,
 )
+from kiku_ai.providers.openai_codex import OpenAICodexProvider
 
 __all__ = [
     "FakeApiAdapter",
@@ -18,6 +19,7 @@ __all__ = [
     "FakeProviderState",
     "FakeResponseFactory",
     "FakeResponseStep",
+    "OpenAICodexProvider",
     "Provider",
     "ProviderAlreadyRegisteredError",
     "ProviderManager",
