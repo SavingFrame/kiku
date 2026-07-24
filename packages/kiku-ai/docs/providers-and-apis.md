@@ -46,7 +46,7 @@ class Provider(Protocol):
         model: Model,
         context: Context,
         options: StreamOptions | None = None,
-    ) -> AssistantMessageStream: ...
+    ) -> AsyncIterator[AssistantMessageEvent]: ...
 ```
 
 The provider does not execute model-requested tools.
@@ -77,14 +77,14 @@ class ApiAdapter(Protocol):
         *,
         auth: ModelAuth,
         base_url: str,
-    ) -> AssistantMessageStream: ...
+    ) -> AsyncIterator[AssistantMessageEvent]: ...
 ```
 
 The provider resolves authentication before invoking its adapter. `ModelAuth` and `base_url` are keyword-only so credentials and provider transport configuration cannot be confused with canonical request data. The adapter receives no credential store and does not resolve or persist credentials. It combines auth headers, protocol defaults, and request-level options when constructing the wire request.
 
 `base_url` belongs to the provider rather than `Model` or `ModelAuth`. Models identify their wire protocol through `Model.api`, while the provider owns both the adapter implementation and its endpoint. The initial contract uses one adapter per provider; a mapping keyed by `Model.api` should only be introduced when a concrete mixed-API provider requires it.
 
-Like `Provider.stream()`, the adapter method returns a stream synchronously. Asynchronous HTTP work and failures are produced behind that stream. A provider that needs asynchronous authentication can return an outer stream, resolve auth in a task, then forward the adapter's stream. This follows Pi's lazy stream setup pattern without moving orchestration into the adapter.
+Like `Provider.stream()`, the adapter method returns an async iterator synchronously. HTTP work begins during iteration. A provider that needs asynchronous authentication can return an outer async generator, resolve authentication inside it, then forward the adapter's events. No background producer task or queue is required.
 
 ## Provider manager
 

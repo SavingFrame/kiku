@@ -70,7 +70,7 @@ Implement:
 - `TextDeltaEvent`
 - `DoneEvent`
 - `ErrorEvent`
-- `AssistantMessageStream`
+- Direct `AsyncIterator[AssistantMessageEvent]` streaming
 
 Tests:
 

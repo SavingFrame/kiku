@@ -1,12 +1,19 @@
-from kiku_ai import AssistantMessageStream, Context, Model, StreamOptions
+from collections.abc import AsyncIterator
+
+from kiku_ai import AssistantMessageEvent, Context, Model, StreamOptions
 from kiku_ai.api import ApiAdapter
 from kiku_ai.auth import ModelAuth
+
+
+async def empty_stream() -> AsyncIterator[AssistantMessageEvent]:
+    if False:
+        yield
 
 
 class RecordingAdapter:
     def __init__(self) -> None:
         self.request: tuple[Model, Context, StreamOptions | None, ModelAuth, str] | None = None
-        self.response = AssistantMessageStream()
+        self.response = empty_stream()
 
     def stream(
         self,
@@ -16,7 +23,7 @@ class RecordingAdapter:
         *,
         auth: ModelAuth,
         base_url: str,
-    ) -> AssistantMessageStream:
+    ) -> AsyncIterator[AssistantMessageEvent]:
         self.request = (model, context, options, auth, base_url)
         return self.response
 
@@ -28,7 +35,7 @@ def invoke_adapter(
     options: StreamOptions | None,
     auth: ModelAuth,
     base_url: str,
-) -> AssistantMessageStream:
+) -> AsyncIterator[AssistantMessageEvent]:
     return adapter.stream(model, context, options, auth=auth, base_url=base_url)
 
 

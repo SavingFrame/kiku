@@ -139,7 +139,9 @@ These are performance and resilience features, not prerequisites for initial mod
 
 ## Recommended HTTP dependency
 
-`httpx.AsyncClient` is a suitable initial choice because it supports asynchronous requests and streamed response bodies. The fake provider should not depend on `httpx`.
+`httpx.AsyncClient` is used because it supports asynchronous requests and streamed response bodies. The fake provider does not depend on `httpx`.
+
+The initial SSE adapter attempts each request once. The provider-neutral `max_retries` and `max_retry_delay_seconds` stream options are currently ignored by this adapter. Retry behavior should be added only with tests that prevent replay after partial output has already been emitted.
 
 An HTTP mocking library such as `respx` can be introduced with the real adapter tests.
 

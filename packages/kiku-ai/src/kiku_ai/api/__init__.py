@@ -5,6 +5,7 @@ from kiku_ai.api.fake import (
     FakeResponseFactory,
     FakeResponseStep,
 )
+from kiku_ai.api.openai_codex_responses import OpenAICodexResponsesAdapter
 
 __all__ = [
     "ApiAdapter",
@@ -12,4 +13,5 @@ __all__ = [
     "FakeProviderState",
     "FakeResponseFactory",
     "FakeResponseStep",
+    "OpenAICodexResponsesAdapter",
 ]

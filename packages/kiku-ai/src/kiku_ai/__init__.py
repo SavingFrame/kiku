@@ -5,6 +5,14 @@ from kiku_ai.events import (
     ErrorEvent,
     StartEvent,
     TextDeltaEvent,
+    TextEndEvent,
+    TextStartEvent,
+    ThinkingDeltaEvent,
+    ThinkingEndEvent,
+    ThinkingStartEvent,
+    ToolCallDeltaEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
 )
 from kiku_ai.messages import (
     AssistantMessage,
@@ -19,12 +27,11 @@ from kiku_ai.messages import (
     UserMessage,
 )
 from kiku_ai.models import Model
-from kiku_ai.streaming import AssistantMessageStream, ReasoningLevel, StreamOptions
+from kiku_ai.streaming import ReasoningLevel, StreamOptions
 
 __all__ = [
     "AssistantMessage",
     "AssistantMessageEvent",
-    "AssistantMessageStream",
     "Context",
     "DoneEvent",
     "ErrorEvent",
@@ -37,9 +44,17 @@ __all__ = [
     "StreamOptions",
     "TextContent",
     "TextDeltaEvent",
+    "TextEndEvent",
+    "TextStartEvent",
     "ThinkingContent",
+    "ThinkingDeltaEvent",
+    "ThinkingEndEvent",
+    "ThinkingStartEvent",
     "Tool",
     "ToolCall",
+    "ToolCallDeltaEvent",
+    "ToolCallEndEvent",
+    "ToolCallStartEvent",
     "ToolResultMessage",
     "Usage",
     "UserMessage",

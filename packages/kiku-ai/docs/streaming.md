@@ -1,33 +1,37 @@
 # Streaming contract
 
-## Why Kiku needs a stream object
+## Direct async iteration
 
-A bare Python `AsyncIterator` can deliver incremental events, but it does not provide a convenient independent final-result contract. Kiku should expose an object that supports both event iteration and final-message retrieval:
-
-```python
-class AssistantMessageStream:
-    def __aiter__(self) -> AsyncIterator[AssistantMessageEvent]: ...
-
-    async def result(self) -> AssistantMessage: ...
-```
-
-Usage:
+Kiku providers and API adapters return an `AsyncIterator[AssistantMessageEvent]` directly:
 
 ```python
-provider = provider_manager.get_provider(model.provider)
 stream = provider.stream(model, context)
 
 async for event in stream:
     render(event)
-
-message = await stream.result()
 ```
 
-Pi uses this contract in `packages/ai/src/utils/event-stream.ts`.
+The provider method itself is synchronous. HTTP work starts when the caller begins iterating over the returned async generator. This gives normal async-generator backpressure and avoids a background producer task or event queue.
+
+## Final result
+
+The terminal event carries the complete assistant message:
+
+```python
+message = None
+async for event in provider.stream(model, context):
+    render(event)
+    if event.type == "done":
+        message = event.message
+    elif event.type == "error":
+        message = event.error
+```
+
+Consumers that need the final message must retain it from `DoneEvent` or `ErrorEvent`. There is no independent `stream.result()` operation. Stopping iteration early means no final result is produced.
 
 ## Event protocol
 
-The full target protocol is:
+The event protocol is:
 
 ```text
 start
@@ -44,20 +48,7 @@ done
 error
 ```
 
-The initial implementation only needs:
-
-```text
-start
-text_delta
-done
-error
-```
-
-More event types can be added without changing the basic stream abstraction.
-
-## Partial assistant message
-
-Incremental events should include the latest partial `AssistantMessage`. Consumers can either process the delta or replace their displayed partial message.
+Incremental events include the latest partial `AssistantMessage`. Its `stop_reason` is `None` until a terminal event.
 
 A typical text stream is:
 
@@ -72,70 +63,19 @@ done                      final AssistantMessage
 
 ## Tool-call streaming
 
-Tool arguments arrive as JSON fragments. During `tool_call_delta`, the arguments are only a best-effort parse:
+Tool arguments arrive as JSON fragments. During `tool_call_delta`, arguments are only a best-effort parse. Consumers must treat them defensively. Final parsed arguments are available in `tool_call_end`.
 
-```text
-{"path":"README
-{"path":"README.md","line
-{"path":"README.md","line":10}
-```
+## Errors and cancellation
 
-Consumers must treat partial arguments defensively. The final parsed arguments are available at `tool_call_end`.
+Request and provider failures are converted to `ErrorEvent` where possible. The event contains the partial response and a concrete `error` stop reason.
 
-This enables a UI to display a target path before the complete tool call has arrived.
+Cancellation uses normal asyncio task cancellation. Cancelling the task consuming the async iterator propagates `CancelledError` through the adapter and closes active `httpx` response contexts. Cancellation is not converted into a terminal event because the consumer task no longer exists to receive it.
 
-## Terminal events
+## Pi and Tau design sources
 
-A successful stream terminates with `DoneEvent` carrying an assistant message whose stop reason is one of:
+The event shapes follow Pi, while direct async-generator ownership follows Tau's Python implementation:
 
-```text
-stop
-tool_use
-length
-```
-
-A failed stream terminates with `ErrorEvent` carrying an assistant message whose stop reason is:
-
-```text
-error
-aborted
-```
-
-Request, model, authentication, and runtime failures should normally be encoded in the stream instead of escaping as exceptions after a stream has been returned.
-
-Programming errors before a stream can be constructed may still raise directly.
-
-## Result semantics
-
-`result()` should resolve to the same terminal assistant message carried by `done` or `error`.
-
-Required behavior:
-
-- Multiple calls to `result()` return the same message
-- `result()` may be awaited before or after event iteration
-- The stream cannot accept events after a terminal event
-- Cancellation returns a partial assistant message with `stop_reason="aborted"`
-- Provider errors preserve any content and usage already received
-
-## Fake provider behavior
-
-The fake provider should translate a scripted final message into realistic events. It should not bypass the event contract. Scripted steps may also be sync or async factories that receive the request context, options, provider state, and selected model.
-
-For a scripted text response, it can split text into deterministic chunks and emit:
-
-```text
-start
-text_start
-text_delta...
-text_end
-done
-```
-
-For a scripted tool call, it should emit partial JSON argument chunks and a final tool-call event.
-
-## Pi design source
-
-- `packages/ai/src/types.ts`, type `AssistantMessageEvent`
-- `packages/ai/src/utils/event-stream.ts`
-- `packages/ai/src/providers/faux.ts`
-- `packages/ai/src/api/anthropic-messages.ts`, function `stream`
+- Pi: `packages/ai/src/types.ts`
+- Tau: `src/tau_agent/provider.py`
+- Tau: `src/tau_ai/openai_codex.py`
+- Tau: `src/tau_ai/stream.py`

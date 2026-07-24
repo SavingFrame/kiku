@@ -77,13 +77,13 @@ class AssistantMessage(BaseModel):
     provider: str
     model: str
     usage: Usage
-    stop_reason: StopReason
+    stop_reason: StopReason | None = None
     error_message: str | None = None
     response_id: str | None = None
     timestamp: datetime
 ```
 
-The `api`, `provider`, and `model` fields preserve provenance. They are also useful when replaying a conversation through a different provider.
+The `api`, `provider`, and `model` fields preserve provenance. They are also useful when replaying a conversation through a different provider. `stop_reason` remains `None` while a response is partial and is set before a terminal event.
 
 ### ToolResultMessage
 

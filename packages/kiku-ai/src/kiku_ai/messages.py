@@ -77,7 +77,7 @@ class AssistantMessage(BaseModel):
     timestamp: datetime
     content: list[TextContent | ThinkingContent | ToolCall]
     usage: Usage
-    stop_reason: StopReason
+    stop_reason: StopReason | None = None
     error_message: str | None = None
     response_id: str | None = None
 
