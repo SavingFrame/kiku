@@ -1,11 +1,26 @@
+import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from kiku_ai.auth import ModelAuth
 from kiku_ai.context import Context
-from kiku_ai.events import AssistantMessageEvent, DoneEvent, ErrorEvent, StartEvent, TextDeltaEvent
-from kiku_ai.messages import AssistantMessage, StopReason, TextContent, Usage
+from kiku_ai.events import (
+    AssistantMessageEvent,
+    DoneEvent,
+    ErrorEvent,
+    StartEvent,
+    TextDeltaEvent,
+    TextEndEvent,
+    TextStartEvent,
+    ThinkingDeltaEvent,
+    ThinkingEndEvent,
+    ThinkingStartEvent,
+    ToolCallDeltaEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
+)
+from kiku_ai.messages import AssistantMessage, StopReason, TextContent, ThinkingContent, ToolCall, Usage
 from kiku_ai.models import Model
 from kiku_ai.streaming import StreamOptions
 
@@ -75,31 +90,71 @@ class FakeApiAdapter:
         partial = response.model_copy(update={"content": [], "usage": Usage(), "stop_reason": None})
         yield StartEvent(partial=partial)
 
-        partial_content: list[TextContent] = []
+        partial_content: list[TextContent | ThinkingContent | ToolCall] = []
         for content_index, content in enumerate(response.content):
-            if not isinstance(content, TextContent):
-                error = response.model_copy(
-                    update={
-                        "content": partial_content,
-                        "stop_reason": StopReason.ERROR,
-                        "error_message": "FakeApiAdapter currently supports text responses only",
-                    }
-                )
-                yield ErrorEvent(reason=StopReason.ERROR, error=error)
-                return
-
-            partial_content.append(TextContent(content=""))
-            accumulated = ""
-            for delta in _text_chunks(content.content):
-                accumulated += delta
-                partial_content[content_index] = TextContent(content=accumulated)
-                partial = response.model_copy(
-                    update={"content": list(partial_content), "usage": Usage(), "stop_reason": None}
-                )
-                yield TextDeltaEvent(
+            if isinstance(content, TextContent):
+                partial_content.append(TextContent(content=""))
+                yield TextStartEvent(
                     content_index=content_index,
-                    delta=delta,
-                    partial=partial,
+                    partial=_partial(response, partial_content),
+                )
+                accumulated = ""
+                for delta in _chunks(content.content):
+                    accumulated += delta
+                    partial_content[content_index] = TextContent(content=accumulated)
+                    yield TextDeltaEvent(
+                        content_index=content_index,
+                        delta=delta,
+                        partial=_partial(response, partial_content),
+                    )
+                yield TextEndEvent(
+                    content_index=content_index,
+                    content=content.content,
+                    partial=_partial(response, partial_content),
+                )
+            elif isinstance(content, ThinkingContent):
+                partial_content.append(content.model_copy(update={"thinking": ""}))
+                yield ThinkingStartEvent(
+                    content_index=content_index,
+                    partial=_partial(response, partial_content),
+                )
+                accumulated = ""
+                for delta in _chunks(content.thinking):
+                    accumulated += delta
+                    partial_content[content_index] = content.model_copy(update={"thinking": accumulated})
+                    yield ThinkingDeltaEvent(
+                        content_index=content_index,
+                        delta=delta,
+                        partial=_partial(response, partial_content),
+                    )
+                yield ThinkingEndEvent(
+                    content_index=content_index,
+                    content=content.thinking,
+                    partial=_partial(response, partial_content),
+                )
+            else:
+                arguments_json = json.dumps(content.arguments, separators=(",", ":"))
+                partial_content.append(content.model_copy(update={"arguments": {}}))
+                yield ToolCallStartEvent(
+                    content_index=content_index,
+                    partial=_partial(response, partial_content),
+                )
+                accumulated = ""
+                for delta in _chunks(arguments_json):
+                    accumulated += delta
+                    partial_content[content_index] = content.model_copy(
+                        update={"arguments": _try_parse_arguments(accumulated)}
+                    )
+                    yield ToolCallDeltaEvent(
+                        content_index=content_index,
+                        delta=delta,
+                        partial=_partial(response, partial_content),
+                    )
+                partial_content[content_index] = content.model_copy(deep=True)
+                yield ToolCallEndEvent(
+                    content_index=content_index,
+                    tool_call=content.model_copy(deep=True),
+                    partial=_partial(response, partial_content),
                 )
 
         if response.stop_reason == StopReason.ERROR:
@@ -114,5 +169,20 @@ class FakeApiAdapter:
             yield DoneEvent(reason=StopReason.STOP, message=response)
 
 
-def _text_chunks(text: str, chunk_size: int = 8) -> list[str]:
-    return [text[index : index + chunk_size] for index in range(0, len(text), chunk_size)]
+def _partial(
+    response: AssistantMessage,
+    content: list[TextContent | ThinkingContent | ToolCall],
+) -> AssistantMessage:
+    return response.model_copy(update={"content": list(content), "usage": Usage(), "stop_reason": None})
+
+
+def _try_parse_arguments(arguments: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(arguments)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _chunks(value: str, chunk_size: int = 8) -> list[str]:
+    return [value[index : index + chunk_size] for index in range(0, len(value), chunk_size)]

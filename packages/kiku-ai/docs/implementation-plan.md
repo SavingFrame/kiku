@@ -75,10 +75,9 @@ Implement:
 Tests:
 
 - Iterate events in order
-- Await `result()` before iteration completes
-- Await `result()` after iteration
-- Return the terminal message from both done and error
-- Ignore or reject pushes after termination
+- Retain the terminal message from `DoneEvent`
+- Retain the terminal message from `ErrorEvent`
+- Confirm stopping iteration early produces no independent final result
 
 ## Milestone 3: fake provider
 

@@ -13,6 +13,17 @@ from kiku_ai import (
     StreamOptions,
     TextContent,
     TextDeltaEvent,
+    TextEndEvent,
+    TextStartEvent,
+    ThinkingContent,
+    ThinkingDeltaEvent,
+    ThinkingEndEvent,
+    ThinkingStartEvent,
+    ToolCall,
+    ToolCallDeltaEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
+    ToolResultMessage,
     Usage,
 )
 from kiku_ai.api import FakeApiAdapter
@@ -133,8 +144,121 @@ async def test_event_order_is_deterministic() -> None:
 
     events, _ = await collect_response(provider)
 
-    assert [event.type for event in events] == ["start", "text_delta", "text_delta", "done"]
+    assert [event.type for event in events] == [
+        "start",
+        "text_start",
+        "text_delta",
+        "text_delta",
+        "text_end",
+        "done",
+    ]
     assert [event.delta for event in events if isinstance(event, TextDeltaEvent)] == ["01234567", "89"]
+
+
+async def test_streams_mixed_thinking_text_and_tool_call_content() -> None:
+    tool_call = ToolCall(
+        id="call-1",
+        name="read",
+        arguments={"path": "README.md", "line": 3},
+    )
+    response = AssistantMessage(
+        timestamp=datetime.now(UTC),
+        content=[
+            ThinkingContent(thinking="Inspect the file", thinking_signature="signature"),
+            TextContent(content="I'll inspect it."),
+            tool_call,
+        ],
+        usage=Usage(input=3, output=8, reasoning=2),
+        stop_reason=StopReason.TOOL_USE,
+    )
+    provider = FakeProvider(
+        responses=[response],
+        credential_store=MemoryCredentialStore(),
+    )
+
+    events, result = await collect_response(provider)
+
+    assert [event.type for event in events] == [
+        "start",
+        "thinking_start",
+        "thinking_delta",
+        "thinking_delta",
+        "thinking_end",
+        "text_start",
+        "text_delta",
+        "text_delta",
+        "text_end",
+        "tool_call_start",
+        "tool_call_delta",
+        "tool_call_delta",
+        "tool_call_delta",
+        "tool_call_delta",
+        "tool_call_end",
+        "done",
+    ]
+    assert "".join(
+        event.delta for event in events if isinstance(event, ThinkingDeltaEvent)
+    ) == "Inspect the file"
+    assert "".join(
+        event.delta for event in events if isinstance(event, ToolCallDeltaEvent)
+    ) == '{"path":"README.md","line":3}'
+    assert any(isinstance(event, ThinkingStartEvent) for event in events)
+    assert any(isinstance(event, ThinkingEndEvent) for event in events)
+    assert any(isinstance(event, TextStartEvent) for event in events)
+    assert any(isinstance(event, TextEndEvent) for event in events)
+    assert any(isinstance(event, ToolCallStartEvent) for event in events)
+    tool_end = next(event for event in events if isinstance(event, ToolCallEndEvent))
+    assert tool_end.tool_call == tool_call
+    assert tool_end.partial.content == response.content
+    assert result is response
+
+
+async def test_scripted_tool_turn_can_be_followed_with_accumulated_context() -> None:
+    first = AssistantMessage(
+        timestamp=datetime.now(UTC),
+        content=[ToolCall(id="call-1", name="read", arguments={"path": "README.md"})],
+        usage=Usage(input=1, output=1),
+        stop_reason=StopReason.TOOL_USE,
+    )
+    tool_result = ToolResultMessage(
+        timestamp=datetime.now(UTC),
+        tool_call_id="call-1",
+        tool_name="read",
+        content=[TextContent(content="file contents")],
+        is_error=False,
+    )
+
+    def second_factory(
+        context: Context,
+        options: StreamOptions | None,
+        state: FakeProviderState,
+        model: Model,
+    ) -> AssistantMessage:
+        del options, state, model
+        assert context.messages == [first, tool_result]
+        return make_response("finished")
+
+    provider = FakeProvider(
+        responses=[first, second_factory],
+        credential_store=MemoryCredentialStore(),
+    )
+    model = provider.get_model("fake-model")
+    assert model is not None
+
+    first_events = [event async for event in provider.stream(model, Context(messages=[]))]
+    tool_end = next(event for event in first_events if isinstance(event, ToolCallEndEvent))
+    assert tool_end.tool_call.arguments == {"path": "README.md"}
+
+    second_events = [
+        event
+        async for event in provider.stream(
+            model,
+            Context(messages=[first, tool_result]),
+        )
+    ]
+    terminal = second_events[-1]
+    assert isinstance(terminal, DoneEvent)
+    assert terminal.message.content == [TextContent(content="finished")]
 
 
 async def test_response_factory_receives_request_and_state() -> None:
