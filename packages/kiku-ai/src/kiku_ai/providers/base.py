@@ -1,6 +1,7 @@
 import abc
 from collections.abc import Sequence
 
+from kiku_ai.auth import CredentialStore, MemoryCredentialStore, ModelAuth, ProviderAuth
 from kiku_ai.context import Context
 from kiku_ai.models import Model
 from kiku_ai.streaming import AssistantMessageStream, StreamOptions
@@ -9,6 +10,7 @@ from kiku_ai.streaming import AssistantMessageStream, StreamOptions
 class Provider(abc.ABC):
     id: str
     name: str
+    auth: ProviderAuth
 
     @abc.abstractmethod
     def get_models(self) -> Sequence[Model]:
@@ -39,8 +41,12 @@ class ProviderNotFoundError(LookupError):
 
 
 class ProviderManager:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        credential_store: CredentialStore | None = None,
+    ) -> None:
         self._providers: dict[str, Provider] = {}
+        self._credential_store = credential_store if credential_store is not None else MemoryCredentialStore()
 
     def register(self, provider: Provider) -> None:
         if provider.id in self._providers:
@@ -64,6 +70,11 @@ class ProviderManager:
     def get_model(self, provider_id: str, model_id: str) -> Model | None:
         provider = self._require_provider(provider_id)
         return provider.get_model(model_id)
+
+    async def resolve_auth(self, provider_id: str) -> ModelAuth | None:
+        provider = self._require_provider(provider_id)
+        credential = await self._credential_store.read(provider_id)
+        return await provider.auth.resolve(credential)
 
     def _require_provider(self, provider_id: str) -> Provider:
         provider = self.get_provider(provider_id)

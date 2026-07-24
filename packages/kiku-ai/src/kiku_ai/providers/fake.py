@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from kiku_ai.auth import KeylessAuth, ProviderAuth
 from kiku_ai.context import Context
 from kiku_ai.events import DoneEvent, ErrorEvent, StartEvent, TextDeltaEvent
 from kiku_ai.messages import AssistantMessage, StopReason, TextContent, Usage
@@ -26,6 +27,7 @@ type FakeResponseStep = AssistantMessage | FakeResponseFactory
 class FakeProvider(Provider):
     id = "fake"
     name = "Fake"
+    auth: ProviderAuth = KeylessAuth()
 
     def __init__(
         self,
