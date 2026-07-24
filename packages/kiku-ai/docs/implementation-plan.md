@@ -1,6 +1,6 @@
 # Incremental implementation plan
 
-Each milestone must leave the package runnable and tested. Do not begin real Codex OAuth until the provider-neutral contracts work with a faux provider.
+Each milestone must leave the package runnable and tested. Do not begin real Codex OAuth until the provider-neutral contracts work with a fake provider.
 
 ## Milestone 0: package layout
 
@@ -15,10 +15,11 @@ packages/kiku-ai/
 │   ├── events.py
 │   ├── stream.py
 │   ├── models.py
+│   ├── provider_manager.py
 │   └── providers/
 │       ├── __init__.py
 │       ├── base.py
-│       └── faux.py
+│       └── fake.py
 └── tests/
 ```
 
@@ -79,16 +80,18 @@ Tests:
 - Return the terminal message from both done and error
 - Ignore or reject pushes after termination
 
-## Milestone 3: faux provider
+## Milestone 3: fake provider
 
 Implement a scripted provider with:
 
 ```python
-fake.set_responses([...])
-fake.append_responses([...])
-fake.get_model()
-fake.pending_response_count
+fake = FakeProvider(responses=[...])
+fake.enqueue(response)
+fake.get_model(model_id)
+fake.stream(model, context, options)
 ```
+
+The constructor and `enqueue()` method are test controls specific to `FakeProvider`. Streaming remains part of the shared `Provider` interface.
 
 Tests:
 
@@ -101,24 +104,26 @@ Tests:
 
 Then add thinking and tool-call event support.
 
-## Milestone 4: Models registry
+## Milestone 4: provider manager
 
-Implement:
+Implement `ProviderManager` with:
 
-- `add_provider()`
-- `delete_provider()`
+- `register()`
+- `unregister()`
 - `get_provider()`
 - `get_models()`
 - `get_model()`
-- `stream()`
-- `complete()`
 
 Tests:
 
-- Route by `model.provider`
-- Reject or stream an error for unknown providers
+- Register and retrieve a provider
+- Return no provider for an unknown ID
+- Aggregate models from registered providers
+- Look up a model by provider and model ID
 - Replace a provider with the same ID
-- Complete through the faux provider
+- Remove a provider and its models
+
+Keep streaming on `Provider`. Add authentication resolution and dynamic catalog refresh to `ProviderManager` in the later milestones that introduce those features.
 
 ## Milestone 5: Codex request serialization
 
@@ -164,7 +169,7 @@ Implement persistent credentials, login, refresh, and logout only after the HTTP
 
 ## Milestone 9: agent package
 
-After faux tool calls work, create `kiku-agent` and implement the smallest loop:
+After fake tool calls work, create `kiku-agent` and implement the smallest loop:
 
 ```text
 prompt
@@ -175,7 +180,7 @@ model continuation
 stop
 ```
 
-Use the faux provider for all agent-loop tests.
+Use the fake provider for all agent-loop tests.
 
 ## Milestone 10: TUI package
 

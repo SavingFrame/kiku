@@ -14,7 +14,8 @@ class AssistantMessageStream:
 Usage:
 
 ```python
-stream = models.stream(model, context)
+provider = provider_manager.get_provider(model.provider)
+stream = provider.stream(model, context)
 
 async for event in stream:
     render(event)
@@ -116,9 +117,9 @@ Required behavior:
 - Cancellation returns a partial assistant message with `stop_reason="aborted"`
 - Provider errors preserve any content and usage already received
 
-## Faux provider behavior
+## Fake provider behavior
 
-The faux provider should translate a scripted final message into realistic events. It should not bypass the event contract.
+The fake provider should translate a scripted final message into realistic events. It should not bypass the event contract.
 
 For a scripted text response, it can split text into deterministic chunks and emit:
 

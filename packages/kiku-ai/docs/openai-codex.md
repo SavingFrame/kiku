@@ -52,7 +52,7 @@ Pi also sends an originator and user-agent header. Kiku should use its own accur
 
 ## Staged implementation
 
-### Stage 1: faux provider
+### Stage 1: fake provider
 
 Build and test the normalized domain and streaming contracts without network access.
 
@@ -139,7 +139,7 @@ These are performance and resilience features, not prerequisites for initial mod
 
 ## Recommended HTTP dependency
 
-`httpx.AsyncClient` is a suitable initial choice because it supports asynchronous requests and streamed response bodies. The faux provider should not depend on `httpx`.
+`httpx.AsyncClient` is a suitable initial choice because it supports asynchronous requests and streamed response bodies. The fake provider should not depend on `httpx`.
 
 An HTTP mocking library such as `respx` can be introduced with the real adapter tests.
 

@@ -75,40 +75,36 @@ class ApiAdapter(Protocol):
     ) -> AssistantMessageStream: ...
 ```
 
-## Models registry
+## Provider manager
 
-`Models` is the application-facing runtime registry:
+`ProviderManager` coordinates provider registration, authentication, model lookup, and catalog refresh:
 
 ```python
-class Models:
-    def add_provider(self, provider: Provider) -> None: ...
+class ProviderManager:
+    def register(self, provider: Provider) -> None: ...
+    def unregister(self, provider_id: str) -> None: ...
     def get_provider(self, provider_id: str) -> Provider | None: ...
     def get_models(self, provider_id: str | None = None) -> Sequence[Model]: ...
     def get_model(self, provider_id: str, model_id: str) -> Model | None: ...
-    def stream(...) -> AssistantMessageStream: ...
-    async def complete(...) -> AssistantMessage: ...
+    async def resolve_auth(self, provider_id: str) -> AuthResult | None: ...
+    async def refresh_models(self, provider_id: str | None = None) -> None: ...
 ```
 
-Request routing is:
+This is a manager rather than a registry because it owns active lifecycle behavior. A separate public model registry would duplicate provider-owned catalogs and require synchronization. The manager may maintain an internal model index for efficient lookup.
+
+Streaming remains a provider responsibility:
 
 ```text
-Models.stream(model, context, options)
+provider_manager.get_provider(model.provider)
     ↓
-find provider using model.provider
-    ↓
-resolve authentication
+provider manager resolves authentication
     ↓
 provider selects adapter using model.api
     ↓
 adapter streams normalized events
 ```
 
-`complete()` is a convenience around the stream result:
-
-```python
-async def complete(...):
-    return await self.stream(...).result()
-```
+`Model` remains serializable metadata and does not perform network requests.
 
 ## Stream options
 
@@ -130,7 +126,7 @@ Provider identity, credentials, and static defaults can remain provider configur
 
 ## Authentication
 
-Authentication should eventually be represented by a separate resolver or credential store. This is especially important for expiring OAuth tokens.
+`ProviderManager` coordinates authentication through a separate resolver and credential store. This is especially important for expiring OAuth tokens.
 
 The desired precedence is:
 
@@ -144,7 +140,7 @@ provider-specific environment or ambient credentials
 
 For OAuth, refresh should be serialized so concurrent requests do not refresh and rotate the same token more than once.
 
-OAuth is not required for the first faux-provider milestone.
+OAuth is not required for the first fake-provider milestone.
 
 ## Current Kiku interface
 
@@ -159,6 +155,8 @@ options: StreamOptions | None
 `aclose()` should be declared with `async def` if implementations close asynchronous HTTP clients.
 
 ## Pi design source
+
+Pi combines provider management, model lookup, authentication, and streaming convenience in its `Models` object. Kiku intentionally uses `ProviderManager` and leaves streaming on `Provider`.
 
 - `packages/ai/src/models.ts`
 - `packages/ai/src/types.ts`

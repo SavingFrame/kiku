@@ -31,7 +31,8 @@ It should not contain:
 The selected `Model`, `Context`, and `StreamOptions` are separate arguments to a stream request:
 
 ```python
-stream = models.stream(model, context, options)
+provider = provider_manager.get_provider(model.provider)
+stream = provider.stream(model, context, options)
 ```
 
 This separation allows the same context to be sent to another model or provider.

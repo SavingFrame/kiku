@@ -72,7 +72,7 @@ Contains cross-provider replay transformations, unsupported image handling, tool
 
 These demonstrate the separation between provider metadata/authentication and protocol-specific payload/stream logic.
 
-## Faux provider
+## Upstream scripted provider
 
 - [`packages/ai/src/providers/faux.ts`](https://github.com/earendil-works/pi/blob/65ff8e7f6db447dcddb1a9c8fd05f081c5cda76a/packages/ai/src/providers/faux.ts)
 

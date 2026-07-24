@@ -11,9 +11,9 @@ These are design notes, not a description of completed Kiku functionality. When 
 - [Architecture](architecture.md): Package boundaries and dependency direction
 - [Domain model](domain-model.md): `Context`, messages, content blocks, tools, models, usage, and stop reasons
 - [Streaming](streaming.md): Normalized events and the final-result stream contract
-- [Providers and APIs](providers-and-apis.md): Provider registry, authentication, and reusable wire-protocol adapters
+- [Providers and APIs](providers-and-apis.md): Provider management, authentication, and reusable wire-protocol adapters
 - [OpenAI Codex](openai-codex.md): Target integration, constraints, and staged implementation
-- [Implementation plan](implementation-plan.md): Small testable milestones beginning with a faux provider
+- [Implementation plan](implementation-plan.md): Small testable milestones beginning with a fake provider
 - [Pi source map](pi-source-map.md): Exact upstream files from which the design was derived
 
 ## Intended package graph
