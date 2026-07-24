@@ -51,6 +51,10 @@ def _terminal_message(events: Sequence[AssistantMessageEvent]) -> AssistantMessa
     return terminal.error
 
 
+async def _collect(stream: AsyncIterator[AssistantMessageEvent]) -> list[AssistantMessageEvent]:
+    return [event async for event in stream]
+
+
 async def test_adapter_posts_codex_request_and_streams_text() -> None:
     captured_request: httpx.Request | None = None
 
@@ -148,6 +152,148 @@ async def test_adapter_posts_codex_request_and_streams_text() -> None:
     assert result.usage.input == 4
     assert result.usage.cache_read == 3
     assert result.usage.output == 2
+
+
+async def test_completes_when_terminal_event_arrives_before_body_closes() -> None:
+    class OpenBody(httpx.AsyncByteStream):
+        closed = False
+
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            yield _sse(
+                [
+                    {
+                        "type": "response.completed",
+                        "response": {"id": "resp_123", "status": "completed"},
+                    }
+                ]
+            )
+            await asyncio.Event().wait()
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    body = OpenBody()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, stream=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = OpenAICodexResponsesAdapter(client)
+        stream = adapter.stream(_model(), Context(messages=[]), auth=_auth(), base_url="https://example.test")
+        events = await asyncio.wait_for(_collect(stream), timeout=0.5)
+
+    assert [event.type for event in events] == ["start", "done"]
+    assert _terminal_message(events).stop_reason == StopReason.STOP
+    assert body.closed
+
+
+async def test_maps_incomplete_response_to_length() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            content=_sse(
+                [
+                    {
+                        "type": "response.incomplete",
+                        "response": {
+                            "id": "resp_incomplete",
+                            "status": "incomplete",
+                            "incomplete_details": {"reason": "max_output_tokens"},
+                            "usage": {
+                                "input_tokens": 30,
+                                "output_tokens": 12,
+                                "input_tokens_details": {
+                                    "cached_tokens": 5,
+                                    "cache_write_tokens": 3,
+                                },
+                            },
+                        },
+                    }
+                ]
+            ),
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = OpenAICodexResponsesAdapter(client)
+        events = [
+            event
+            async for event in adapter.stream(
+                _model(), Context(messages=[]), auth=_auth(), base_url="https://example.test"
+            )
+        ]
+
+    result = _terminal_message(events)
+    assert result.stop_reason == StopReason.LENGTH
+    assert result.response_id == "resp_incomplete"
+    assert result.usage.input == 22
+    assert result.usage.cache_read == 5
+    assert result.usage.cache_write == 3
+
+
+async def test_failed_response_preserves_provider_code_and_message() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            content=_sse(
+                [
+                    {
+                        "type": "response.failed",
+                        "response": {
+                            "id": "resp_failed",
+                            "status": "failed",
+                            "error": {"code": "server_error", "message": "boom"},
+                        },
+                    }
+                ]
+            ),
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = OpenAICodexResponsesAdapter(client)
+        events = [
+            event
+            async for event in adapter.stream(
+                _model(), Context(messages=[]), auth=_auth(), base_url="https://example.test"
+            )
+        ]
+
+    result = _terminal_message(events)
+    assert result.stop_reason == StopReason.ERROR
+    assert result.error_message == "server_error: boom"
+
+
+async def test_clamps_session_affinity_values_to_64_characters() -> None:
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            200,
+            content=_sse([{"type": "response.completed", "response": {"status": "completed"}}]),
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = OpenAICodexResponsesAdapter(client)
+        events = [
+            event
+            async for event in adapter.stream(
+                _model(),
+                Context(messages=[]),
+                StreamOptions(session_id="x" * 67),
+                auth=_auth(),
+                base_url="https://example.test",
+            )
+        ]
+
+    assert isinstance(events[-1], DoneEvent)
+    assert captured_request is not None
+    assert captured_request.headers["session-id"] == "x" * 64
+    assert captured_request.headers["x-client-request-id"] == "x" * 64
+    assert json.loads(captured_request.content)["prompt_cache_key"] == "x" * 64
 
 
 async def test_streams_reasoning_and_tool_calls() -> None:

@@ -40,6 +40,7 @@ from kiku_ai.streaming import ReasoningLevel, StreamOptions
 _DEFAULT_INSTRUCTIONS = "You are a helpful assistant."
 _CODEX_RESPONSES_PATH = "/codex/responses"
 _USER_AGENT = "kiku-ai/0.1.0"
+_MAX_SESSION_ID_LENGTH = 64
 
 
 @dataclass
@@ -142,8 +143,9 @@ def _build_headers(auth: ModelAuth, options: StreamOptions | None) -> httpx.Head
     headers["Originator"] = "kiku"
     headers["User-Agent"] = _USER_AGENT
     if options and options.session_id:
-        headers["session-id"] = options.session_id
-        headers["x-client-request-id"] = options.session_id
+        session_id = _clamp_session_id(options.session_id)
+        headers["session-id"] = session_id
+        headers["x-client-request-id"] = session_id
     return headers
 
 
@@ -272,8 +274,10 @@ async def _process_codex_events(
             response = event.get("response") or {}
             error = response.get("error") or {}
             incomplete_details = response.get("incomplete_details") or {}
+            code = error.get("code")
             message = error.get("message") or incomplete_details.get("reason") or "Unknown error"
-            raise RuntimeError(str(message))
+            details = f"{code}: {message}" if code else str(message)
+            raise RuntimeError(details)
         elif event_type == "error":
             code = event.get("code", "unknown")
             raise RuntimeError(f"Codex error {code}: {event.get('message', 'Unknown error')}")
@@ -442,11 +446,15 @@ def _build_request(
     if options.max_output_tokens is not None:
         request["max_output_tokens"] = options.max_output_tokens
     if options.session_id is not None:
-        request["prompt_cache_key"] = options.session_id
+        request["prompt_cache_key"] = _clamp_session_id(options.session_id)
     if options.reasoning is not None and options.reasoning != ReasoningLevel.OFF:
         request["reasoning"] = {"effort": str(options.reasoning), "summary": "auto"}
 
     return request
+
+
+def _clamp_session_id(session_id: str) -> str:
+    return session_id[:_MAX_SESSION_ID_LENGTH]
 
 
 def _convert_messages(context: Context) -> list[dict[str, Any]]:

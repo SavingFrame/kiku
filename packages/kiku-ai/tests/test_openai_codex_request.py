@@ -236,6 +236,16 @@ def test_converts_codex_stream_options() -> None:
     assert request["prompt_cache_key"] == "session-123"
 
 
+def test_clamps_prompt_cache_key_to_64_characters() -> None:
+    request = build_openai_codex_request(
+        _model(),
+        Context(messages=[]),
+        StreamOptions(session_id="x" * 67),
+    )
+
+    assert request["prompt_cache_key"] == "x" * 64
+
+
 def test_omits_reasoning_when_explicitly_off() -> None:
     request = build_openai_codex_request(
         _model(),
