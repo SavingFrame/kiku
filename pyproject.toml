@@ -53,3 +53,6 @@ select = [
 [tool.ruff]
 # Allow lines to be as long as 120.
 line-length = 120
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
